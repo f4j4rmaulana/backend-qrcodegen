@@ -1,0 +1,100 @@
+//import express
+const express = require('express');
+
+const fs = require('fs');
+const path = require('path');
+
+//import prisma client
+const prisma = require('../prisma/client');
+
+// Helper function to delete a file from the filesystem
+const deleteFile = (filePath) => {
+    if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+    }
+};
+
+const findDocuments = async (req, res) => {
+    try {
+        // Get all documents that are not soft deleted from the database
+        const documents = await prisma.document.findMany({
+            where: { isDeleted: false }, // Filter out soft-deleted documents
+            select: {
+                id: true,
+                originalFileName: true,
+                barcodeFileName: true,
+                path: true,
+                originalFilePath: true,
+                createdAt: true,
+                user: {
+                    select: { name: true },
+                },
+            },
+            orderBy: { id: 'desc' },
+        });
+
+        // Map documents to include userName directly in the response
+        const documentsWithUserName = documents.map((doc) => ({
+            ...doc,
+            userName: doc.user ? doc.user.name : 'Unknown User',
+        }));
+
+        // Send response
+        res.status(200).send({
+            success: true,
+            message: 'Get all documents successfully',
+            data: documentsWithUserName,
+        });
+    } catch (error) {
+        console.error('Error fetching documents:', error);
+        res.status(500).send({
+            success: false,
+            message: 'Internal server error',
+        });
+    }
+};
+
+// Function to soft delete a document
+const deleteDocument = async (req, res) => {
+    // Get ID from params
+    const { id } = req.params;
+
+    try {
+        // Find the document to get file paths
+        const document = await prisma.document.findUnique({
+            where: { id: Number(id) },
+        });
+
+        if (!document) {
+            return res.status(404).send({
+                success: false,
+                message: 'Document not found',
+            });
+        }
+
+        // Soft delete the document by setting isDeleted to true
+        await prisma.document.update({
+            where: { id: Number(id) },
+            data: { isDeleted: true },
+        });
+
+        // Delete the files from the filesystem
+        deleteFile(document.path);
+        deleteFile(document.originalFilePath);
+
+        // Send response
+        res.status(200).send({
+            success: true,
+            message: 'Document deleted successfully',
+        });
+    } catch (error) {
+        console.error('Error deleting document:', error);
+        res.status(500).send({
+            success: false,
+            message: 'Internal server error',
+        });
+    }
+};
+
+// Export the findDocuments function to be used in other parts of the application
+module.exports = { findDocuments, deleteDocument };
