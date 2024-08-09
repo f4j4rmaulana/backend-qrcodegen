@@ -1,6 +1,8 @@
 //import express
 const express = require('express');
 
+const path = require('path');
+
 //import CORS
 const cors = require('cors');
 
@@ -36,6 +38,9 @@ app.use(bodyParser.json());
 //define routes
 app.use('/api', router);
 
+// Serve static files from the "public" directory
+app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
+
 // Middleware untuk mengatur zona waktu global
 app.use((req, res, next) => {
     // Atur zona waktu Asia/Jakarta
@@ -53,6 +58,9 @@ app.get('/', (req, res) => {
 });
 
 //start server
-app.listen(port, () => {
-    console.log(`Server started on port ${port}`);
+// app.listen(port, () => {
+//     console.log(`Server started on port ${port}`);
+// });
+app.listen(port, '0.0.0.0', () => {
+    console.log(`Server berjalan di http://localhost:${port}`);
 });

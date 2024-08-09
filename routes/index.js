@@ -16,11 +16,17 @@ const uploadController = require('../controllers/UploadController');
 //import document controller
 const documentController = require('../controllers/DocumentController');
 
+//import user controller
+const userController = require('../controllers/UserController');
+
 //import validate register and login
 const { validateRegister, validateLogin } = require('../utils/validators/auth');
 
 //import validate upload
 const { validateUpload } = require('../utils/validators/document');
+
+//import validate user
+const { validateUser } = require('../utils/validators/user');
 
 //import verify token middleware
 const verifyToken = require('../middlewares/auth');
@@ -42,6 +48,15 @@ router.get('/admin/documents', verifyToken, documentController.findDocuments);
 
 //define route for delete document
 router.delete('/admin/documents/:id', verifyToken, documentController.deleteDocument);
+
+//define route for get all user
+router.get('/admin/users', verifyToken, userController.findUsers);
+
+//define route for create user
+router.post('/admin/users', verifyToken, validateUser, userController.createUser);
+
+//define route for delete user
+router.delete('/admin/users/:id', verifyToken, userController.deleteUser);
 
 //export router
 module.exports = router;

@@ -16,7 +16,14 @@ const deleteFile = (filePath) => {
 
 const findDocuments = async (req, res) => {
     try {
-        // Get all documents that are not soft deleted from the database
+        // Get page and limit from query params, with default values
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+
+        // Calculate offset
+        const offset = (page - 1) * limit;
+
+        // Get all documents that are not soft deleted from the database with pagination
         const documents = await prisma.document.findMany({
             where: { isDeleted: false }, // Filter out soft-deleted documents
             select: {
@@ -31,7 +38,17 @@ const findDocuments = async (req, res) => {
                 },
             },
             orderBy: { id: 'desc' },
+            skip: offset,
+            take: limit,
         });
+
+        // Get total number of documents
+        const totalDocuments = await prisma.document.count({
+            where: { isDeleted: false },
+        });
+
+        // Calculate total pages
+        const totalPages = Math.ceil(totalDocuments / limit);
 
         // Map documents to include userName directly in the response
         const documentsWithUserName = documents.map((doc) => ({
@@ -44,6 +61,8 @@ const findDocuments = async (req, res) => {
             success: true,
             message: 'Get all documents successfully',
             data: documentsWithUserName,
+            currentPage: page,
+            totalPages: totalPages,
         });
     } catch (error) {
         console.error('Error fetching documents:', error);

@@ -56,7 +56,7 @@ const upload = async (req, res) => {
         }
 
         // Generate URL for QR code
-        const qrCodeText = `https://localhost:3001/public/uploads/digital_signature/${year}/${userId}/${barcodeFileName}`;
+        const qrCodeText = `http://localhost:3001/uploads/digital_signature/${year}/${userId}/${barcodeFileName}`;
         console.log('QR Code text:', qrCodeText);
 
         const qrCodeImage = await QRCode.toDataURL(qrCodeText);
@@ -91,9 +91,9 @@ const upload = async (req, res) => {
             y: textBoxY,
             width: textBoxWidth,
             height: textBoxHeight,
-            borderColor: rgb(1, 1, 1),
-            borderWidth: 1,
-            color: rgb(1, 1, 1), // Warna background putih
+            color: rgb(1, 1, 1, 0), // Transparan (RGBA: 1, 1, 1, 0)
+            borderColor: rgb(0, 0, 0, 0), // Border color transparan (RGBA: 0, 0, 0, 0)
+            borderWidth: 0, // Tidak ada border
         });
 
         const fontSize = 6; // Ukuran font teks
@@ -140,8 +140,8 @@ const upload = async (req, res) => {
             data: {
                 originalFileName: file.originalname,
                 barcodeFileName,
-                originalFilePath: pdfPath.replace(/\\/g, '/'), // Mengganti semua karakter \ menjadi /,
-                path: barcodeFilePath.replace(/\\/g, '/'), // Mengganti semua karakter \ menjadi /,
+                originalFilePath: `uploads/digital_signature/${year}/${userId}/${file.filename}`,
+                path: `uploads/digital_signature/${year}/${userId}/${barcodeFileName}`,
                 userId: parseInt(userId),
             },
         });
