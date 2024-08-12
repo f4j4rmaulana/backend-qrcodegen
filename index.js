@@ -26,8 +26,11 @@ const app = express();
 //define port
 const port = 3001;
 
-//use cors
-app.use(cors());
+// CORS configuration
+app.use(cors({
+    origin: 'http://localhost:5173', // Update with your frontend's origin
+    credentials: true, // Allow cookies and authentication headers
+}));
 
 //use body parser
 app.use(bodyParser.urlencoded({ extended: false }));
@@ -58,9 +61,9 @@ app.get('/', (req, res) => {
 });
 
 //start server
-// app.listen(port, () => {
-//     console.log(`Server started on port ${port}`);
-// });
-app.listen(port, '0.0.0.0', () => {
-    console.log(`Server berjalan di http://localhost:${port}`);
+app.listen(port, () => {
+    console.log(`Server started on port ${port}`);
 });
+// app.listen(port, '0.0.0.0', () => {
+//     console.log(`Server berjalan di http://localhost:${port}`);
+// });

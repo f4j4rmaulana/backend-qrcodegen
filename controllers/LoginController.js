@@ -26,7 +26,7 @@ const login = async (req, res) => {
             errors: errors.array(),
         });
     }
-
+    
     try {
         //find user
         const user = await prisma.user.findFirst({
@@ -40,6 +40,7 @@ const login = async (req, res) => {
                 password: true,
             },
         });
+        
 
         //user not found
         if (!user)
@@ -83,4 +84,24 @@ const login = async (req, res) => {
     }
 };
 
-module.exports = { login };
+// Logout function
+const logout = async (req, res) => {
+    try {
+        // Invalidate the token by clearing the JWT cookie
+        res.clearCookie('token');
+
+        // Alternatively, you can respond with a success message
+        return res.status(200).json({
+            success: true,
+            message: 'Logout successfully',
+        });
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: 'Internal server error',
+        });
+    }
+};
+
+module.exports = { login, logout };
+

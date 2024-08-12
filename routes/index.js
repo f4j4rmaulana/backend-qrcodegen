@@ -40,6 +40,9 @@ router.post('/register', validateRegister, registerController.register);
 //define route for login
 router.post('/login', validateLogin, loginController.login);
 
+//define route for login
+router.post('/logout', loginController.logout);
+
 //define route for upload with token verification
 router.post('/admin/upload', verifyToken, upload.single('pdf'), validateUpload, uploadController.upload);
 
@@ -54,6 +57,12 @@ router.get('/admin/users', verifyToken, userController.findUsers);
 
 //define route for create user
 router.post('/admin/users', verifyToken, validateUser, userController.createUser);
+
+//define route for user by id
+router.get('/admin/users/:id', verifyToken, userController.findUserById);
+
+//define route for user update
+router.put('/admin/users/:id', verifyToken, validateUser, userController.updateUser);
 
 //define route for delete user
 router.delete('/admin/users/:id', verifyToken, userController.deleteUser);

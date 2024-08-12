@@ -8,7 +8,7 @@ const prisma = require('../prisma/client');
 
 // Generate a hash for file name
 const generateHash = (length = 10) => {
-    return crypto.randomBytes(length).toString('hex').slice(0, length);
+    return crypto.createHash('sha256').update(crypto.randomBytes(length)).digest('hex').slice(0, length);
 };
 
 // Create directories if they don't exist
