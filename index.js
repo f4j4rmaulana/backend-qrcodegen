@@ -59,8 +59,8 @@ app.get('/', (req, res) => {
 
 // Middleware to handle 404 errors
 app.use((req, res, next) => {
-    res.status(404).json({ message: 'Route not found' });
-});
+    res.status(404).send("Sorry can't find that!")
+  })
 
 //start server
 app.listen(port, () => {
