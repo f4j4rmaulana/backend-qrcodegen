@@ -27,10 +27,7 @@ const app = express();
 const port = 3001;
 
 // CORS configuration
-app.use(cors({
-    origin: 'http://localhost:5173', // Update with your frontend's origin
-    credentials: true, // Allow cookies and authentication headers
-}));
+app.use(cors())
 
 //use body parser
 app.use(bodyParser.urlencoded({ extended: false }));

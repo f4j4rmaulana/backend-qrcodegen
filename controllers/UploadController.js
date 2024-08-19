@@ -56,7 +56,7 @@ const upload = async (req, res) => {
         }
 
         // Generate URL for QR code
-        const qrCodeText = `http://localhost:3001/uploads/digital_signature/${year}/${userId}/${barcodeFileName}`;
+        const qrCodeText = `http://192.168.210.103:3001/uploads/digital_signature/${year}/${userId}/${barcodeFileName}`;
         console.log('QR Code text:', qrCodeText);
 
         const qrCodeImage = await QRCode.toDataURL(qrCodeText);

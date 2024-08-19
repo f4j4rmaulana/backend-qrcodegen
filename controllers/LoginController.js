@@ -85,12 +85,15 @@ const login = async (req, res) => {
 };
 
 // Logout function
+// Logout function in Express
 const logout = async (req, res) => {
     try {
-        // Invalidate the token by clearing the JWT cookie
-        res.clearCookie('token');
+        res.clearCookie('token', {
+            httpOnly: true,  // Adjust based on how the cookie was set
+            secure: process.env.NODE_ENV === 'production',  // Set to `true` if using HTTPS
+            sameSite: 'Strict'  // Adjust based on your requirements
+        });
 
-        // Alternatively, you can respond with a success message
         return res.status(200).json({
             success: true,
             message: 'Logout successfully',
@@ -102,6 +105,7 @@ const logout = async (req, res) => {
         });
     }
 };
+
 
 module.exports = { login, logout };
 
