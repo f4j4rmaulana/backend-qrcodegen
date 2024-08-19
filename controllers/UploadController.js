@@ -35,8 +35,8 @@ const upload = async (req, res) => {
         const year = new Date().getFullYear();
 
         // Generate hash for file name
+        const originalFileName = file.originalname.replace(/\s+/g, '_');
         const hash = generateHash();
-        const originalFileName = file.originalname;
         const barcodeFileName = `${hash}_${originalFileName}`;
         console.log('Barcode file name:', barcodeFileName);
 

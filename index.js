@@ -57,6 +57,11 @@ app.get('/', (req, res) => {
     res.send('Hello! Your IP address is: ' + ip + `<br/> Waktu sekarang di Asia/Jakarta: ${currentTime}`);
 });
 
+// Middleware to handle 404 errors
+app.use((req, res, next) => {
+    res.status(404).json({ message: 'Route not found' });
+});
+
 //start server
 app.listen(port, () => {
     console.log(`Server started on port ${port}`);
