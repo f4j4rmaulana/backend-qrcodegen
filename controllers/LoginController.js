@@ -84,7 +84,6 @@ const login = async (req, res) => {
     }
 };
 
-// Logout function
 // Logout function in Express
 const logout = async (req, res) => {
     try {

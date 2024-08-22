@@ -5,9 +5,10 @@ const path = require('path');
 const crypto = require('crypto');
 const { validationResult } = require('express-validator');
 const prisma = require('../prisma/client');
+require('dotenv').config(); // Load environment variables from .env
 
 // Generate a hash for file name
-const generateHash = (length = 10) => {
+const generateHash = (length = 32) => {
     return crypto.createHash('sha256').update(crypto.randomBytes(length)).digest('hex').slice(0, length);
 };
 
@@ -19,6 +20,7 @@ const createDirectories = (dirs) => {
 };
 
 const upload = async (req, res) => {
+    // console.log("THIS");
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
@@ -26,7 +28,7 @@ const upload = async (req, res) => {
 
     try {
         const file = req.file;
-        console.log('Received file:', file);
+        // console.log('Received file:', file);
 
         // Get userId from request
         const userId = req.userId;
@@ -38,7 +40,7 @@ const upload = async (req, res) => {
         const originalFileName = file.originalname.replace(/\s+/g, '_');
         const hash = generateHash();
         const barcodeFileName = `${hash}_${originalFileName}`;
-        console.log('Barcode file name:', barcodeFileName);
+        // console.log('Barcode file name:', barcodeFileName);
 
         // Set paths for saving
         const uploadsPath = path.join(__dirname, '..', 'public', 'uploads', 'digital_signature', year.toString(), userId.toString());
@@ -48,8 +50,8 @@ const upload = async (req, res) => {
         const pdfPath = path.join(uploadsPath, file.filename);
         const barcodeFilePath = path.join(uploadsPath, barcodeFileName);
 
-        console.log('PDF path:', pdfPath);
-        console.log('Barcode file path:', barcodeFilePath);
+        // console.log('PDF path:', pdfPath);
+        // console.log('Barcode file path:', barcodeFilePath);
 
         if (!fs.existsSync(pdfPath)) {
             return res.status(404).json({ message: 'PDF file not found' });
@@ -57,7 +59,7 @@ const upload = async (req, res) => {
 
         // Generate URL for QR code
         const qrCodeText = `http://192.168.210.103:3001/uploads/digital_signature/${year}/${userId}/${barcodeFileName}`;
-        console.log('QR Code text:', qrCodeText);
+        // console.log('QR Code text:', qrCodeText);
 
         const qrCodeImage = await QRCode.toDataURL(qrCodeText);
 
@@ -79,11 +81,11 @@ const upload = async (req, res) => {
         const textBoxY = margin; // Posisi Y untuk textbox
 
         // Output posisi dan ukuran textbox
-        console.log(`Posisi dan Ukuran Textbox:
-                X: ${textBoxX} points
-                Y: ${textBoxY} points
-                Lebar: ${textBoxWidth} points
-                Tinggi: ${textBoxHeight} points`);
+        // console.log(`Posisi dan Ukuran Textbox:
+        //         X: ${textBoxX} points
+        //         Y: ${textBoxY} points
+        //         Lebar: ${textBoxWidth} points
+        //         Tinggi: ${textBoxHeight} points`);
 
         // Gambar textbox dengan border putih
         firstPage.drawRectangle({
@@ -109,8 +111,8 @@ const upload = async (req, res) => {
         };
 
         // Output teks yang akan ditampilkan
-        console.log(`Teks yang akan ditampilkan dalam Textbox:
-                "${text}"`);
+        // console.log(`Teks yang akan ditampilkan dalam Textbox:
+        //         "${text}"`);
 
         // Gambar teks dalam textbox
         firstPage.drawText(text, textOptions);
@@ -120,10 +122,10 @@ const upload = async (req, res) => {
         const qrCodeY = margin; // Posisi Y untuk QR Code
 
         // Output posisi dan ukuran QR Code
-        console.log(`Posisi dan Ukuran QR Code:
-                X: ${qrCodeX} points
-                Y: ${qrCodeY} points
-                Ukuran: ${qrCodeSize} points`);
+        // console.log(`Posisi dan Ukuran QR Code:
+        //         X: ${qrCodeX} points
+        //         Y: ${qrCodeY} points
+        //         Ukuran: ${qrCodeSize} points`);
 
         // Gambar QR Code
         firstPage.drawImage(pngImage, {

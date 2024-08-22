@@ -23,10 +23,14 @@ const storage = multer.diskStorage({
         cb(null, uploadPath);
     },
     filename: function (req, file, cb) {
-        const hash = crypto.randomBytes(10).toString('hex').slice(0, 10);
-        const originalFileName = file.originalname;
-        const timestamp = Date.now();
-        const barcodeFileName = `${hash}_${timestamp}_${originalFileName}`;
+        // Generate SHA-256 hash
+        const hash = crypto.createHash('sha256')
+            .update(file.originalname + Date.now().toString())
+            .digest('hex')
+            .slice(0, 32); // Truncate to 32 characters
+
+        const originalFileName = file.originalname.replace(/\s+/g, '_');
+        const barcodeFileName = `${hash}_${originalFileName}`;
 
         cb(null, barcodeFileName);
     },
