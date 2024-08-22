@@ -14,7 +14,10 @@ const findDocuments = async (req, res) => {
         // Get page, limit, and search query from query params, with default values
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
-        const searchQuery = req.query.search || '';
+        let searchQuery = req.query.search || '';
+
+        // Convert search query to lowercase
+        searchQuery = searchQuery.toLowerCase();
 
         // Calculate offset
         const offset = (page - 1) * limit;
@@ -85,6 +88,7 @@ const findDocuments = async (req, res) => {
         });
     }
 };
+
 
 // Function to soft delete a document
 const deleteDocument = async (req, res) => {
