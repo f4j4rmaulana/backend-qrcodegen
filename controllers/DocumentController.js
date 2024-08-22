@@ -1,10 +1,5 @@
-//import express
 const express = require('express');
-
 const fs = require('fs');
-const path = require('path');
-
-//import prisma client
 const prisma = require('../prisma/client');
 
 // Helper function to delete a file from the filesystem
@@ -16,16 +11,31 @@ const deleteFile = (filePath) => {
 
 const findDocuments = async (req, res) => {
     try {
-        // Get page and limit from query params, with default values
+        // Get page, limit, and search query from query params, with default values
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
+        const searchQuery = req.query.search || '';
 
         // Calculate offset
         const offset = (page - 1) * limit;
 
-        // Get all documents that are not soft deleted from the database with pagination
+        // Build search filter
+        const searchFilter = searchQuery
+            ? {
+                  OR: [
+                      { originalFileName: { contains: searchQuery, mode: 'insensitive' } },
+                      { barcodeFileName: { contains: searchQuery, mode: 'insensitive' } },
+                      { user: { name: { contains: searchQuery, mode: 'insensitive' } } },
+                  ],
+              }
+            : {};
+
+        // Get all documents that are not soft deleted from the database with pagination and search
         const documents = await prisma.document.findMany({
-            where: { isDeleted: false }, // Filter out soft-deleted documents
+            where: {
+                isDeleted: false,
+                ...searchFilter,
+            },
             select: {
                 id: true,
                 originalFileName: true,
@@ -42,9 +52,12 @@ const findDocuments = async (req, res) => {
             take: limit,
         });
 
-        // Get total number of documents
+        // Get total number of documents that match the search filter
         const totalDocuments = await prisma.document.count({
-            where: { isDeleted: false },
+            where: {
+                isDeleted: false,
+                ...searchFilter,
+            },
         });
 
         // Calculate total pages
@@ -115,5 +128,4 @@ const deleteDocument = async (req, res) => {
     }
 };
 
-// Export the findDocuments function to be used in other parts of the application
 module.exports = { findDocuments, deleteDocument };

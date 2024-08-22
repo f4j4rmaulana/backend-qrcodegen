@@ -29,6 +29,10 @@ const port = 3001;
 // CORS configuration
 app.use(cors())
 
+// app.use(cors({
+//     origin: 'http://localhost:5173' // Only allow requests from this origin
+// }));
+
 //use body parser
 app.use(bodyParser.urlencoded({ extended: false }));
 
