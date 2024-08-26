@@ -6,3 +6,5 @@ ALTER TABLE "documents" ADD COLUMN     "isDeleted" BOOLEAN NOT NULL DEFAULT fals
 
 -- AddForeignKey
 ALTER TABLE "documents" ADD CONSTRAINT "documents_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION;
+
+ALTER TABLE "users" ADD COLUMN     "isDeleted" BOOLEAN NOT NULL DEFAULT false;
