@@ -48,6 +48,7 @@ const upload = async (req, res) => {
         const uploadsPath = path.join(__dirname, '..', 'public', 'uploads', 'original', year, month, day, userId);
         const uploadsPathBarcode = path.join(__dirname, '..', 'public', 'uploads', 'digital_signature', year, month, day, userId);
         createDirectories(uploadsPath);
+        createDirectories(uploadsPathBarcode);
 
         // Path untuk membaca dan menyimpan file
         const pdfPath = path.join(uploadsPath, file.filename);
