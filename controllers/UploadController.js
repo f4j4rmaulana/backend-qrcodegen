@@ -5,14 +5,14 @@ const path = require('path');
 const crypto = require('crypto');
 const { validationResult } = require('express-validator');
 const prisma = require('../prisma/client');
-require('dotenv').config(); // Load environment variables from .env
+require('dotenv').config(); // Memuat variabel lingkungan dari file .env
 
-// Generate a hash for file name
+// Fungsi untuk menghasilkan hash untuk nama file
 const generateHash = (length = 32) => {
     return crypto.createHash('sha256').update(crypto.randomBytes(length)).digest('hex').slice(0, length);
 };
 
-// Create directories if they don't exist
+// Fungsi untuk membuat direktori jika belum ada
 const createDirectories = (dirs) => {
     if (!fs.existsSync(dirs)) {
         fs.mkdirSync(dirs, { recursive: true });
@@ -20,7 +20,7 @@ const createDirectories = (dirs) => {
 };
 
 const upload = async (req, res) => {
-    // console.log("THIS");
+    // Validasi permintaan
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
@@ -28,47 +28,51 @@ const upload = async (req, res) => {
 
     try {
         const file = req.file;
-        // console.log('Received file:', file);
 
-        // Get userId from request
+        // Mendapatkan userId dari permintaan
         const userId = req.userId;
         if (!userId) return res.status(401).json({ message: 'User not authenticated' });
 
-        const year = new Date().getFullYear();
+        // Mendapatkan tanggal saat ini
+        const date = new Date();
+        const year = String(date.getFullYear());
+        const month = String(date.getMonth() + 1).padStart(2, '0'); // Mendapatkan bulan (0-based index, +1)
+        const day = String(date.getDate()).padStart(2, '0'); // Mendapatkan hari dalam sebulan
 
-        // Generate hash for file name
+        // Menghasilkan hash untuk nama file
         const originalFileName = file.originalname.replace(/\s+/g, '_');
         const hash = generateHash();
         const barcodeFileName = `${hash}_${originalFileName}`;
-        // console.log('Barcode file name:', barcodeFileName);
 
-        // Set paths for saving
-        const uploadsPath = path.join(__dirname, '..', 'public', 'uploads', 'digital_signature', year.toString(), userId.toString());
+        // Menentukan path untuk penyimpanan
+        const uploadsPath = path.join(__dirname, '..', 'public', 'uploads', 'original', year, month, day, userId);
+        const uploadsPathBarcode = path.join(__dirname, '..', 'public', 'uploads', 'digital_signature', year, month, day, userId);
         createDirectories(uploadsPath);
 
-        // Corrected path for file reading and saving
+        // Path untuk membaca dan menyimpan file
         const pdfPath = path.join(uploadsPath, file.filename);
-        const barcodeFilePath = path.join(uploadsPath, barcodeFileName);
+        // path untuk menyimpan barcode file setelah di modif
+        const barcodeFilePath = path.join(uploadsPathBarcode, barcodeFileName);
+        // console.log(barcodeFilePath);
 
-        // console.log('PDF path:', pdfPath);
-        // console.log('Barcode file path:', barcodeFilePath);
-
+        // Memeriksa apakah file PDF ada
         if (!fs.existsSync(pdfPath)) {
             return res.status(404).json({ message: 'PDF file not found' });
         }
 
-        // Generate URL for QR code
-        const qrCodeText = `${process.env.BASE_URL}/uploads/digital_signature/${year}/${userId}/${barcodeFileName}`;
-        // console.log('QR Code text:', qrCodeText);
-
+        // Menghasilkan URL untuk QR code
+        const qrCodeText = `${process.env.BASE_URL}/uploads/digital_signature/${year}/${month}/${day}/${userId}/${barcodeFileName}`;
         const qrCodeImage = await QRCode.toDataURL(qrCodeText);
 
+        // Memuat dokumen PDF dan mempersiapkan halaman untuk pengeditan
         const pdfDoc = await PDFDocument.load(fs.readFileSync(pdfPath));
         const pages = pdfDoc.getPages();
         const firstPage = pages[0];
 
+        // Menyematkan gambar QR code ke dalam PDF
         const pngImage = await pdfDoc.embedPng(qrCodeImage);
 
+        // Ukuran dan margin untuk QR code dan teks
         const qrCodeSize = 56.7; // Ukuran QR Code dalam points (2 cm)
         const margin = 1; // Margin umum antar elemen dalam points
         const textBoxWidth = 4 * 28.35; // Lebar textbox dalam points (3 cm)
@@ -76,58 +80,42 @@ const upload = async (req, res) => {
 
         const { width, height } = firstPage.getSize(); // Mendapatkan ukuran halaman
 
-        // Hitung posisi textbox
-        const textBoxX = width - textBoxWidth - margin; // Posisi X untuk textbox
-        const textBoxY = margin; // Posisi Y untuk textbox
+        // Menghitung posisi textbox
+        const textBoxX = width - textBoxWidth - margin;
+        const textBoxY = margin;
 
-        // Output posisi dan ukuran textbox
-        // console.log(`Posisi dan Ukuran Textbox:
-        //         X: ${textBoxX} points
-        //         Y: ${textBoxY} points
-        //         Lebar: ${textBoxWidth} points
-        //         Tinggi: ${textBoxHeight} points`);
-
-        // Gambar textbox dengan border putih
+        // Menggambar textbox dengan border putih (transparan)
         firstPage.drawRectangle({
             x: textBoxX,
             y: textBoxY,
             width: textBoxWidth,
             height: textBoxHeight,
-            color: rgb(1, 1, 1, 0), // Transparan (RGBA: 1, 1, 1, 0)
-            borderColor: rgb(0, 0, 0, 0), // Border color transparan (RGBA: 0, 0, 0, 0)
+            color: rgb(1, 1, 1, 0), // Transparan
+            borderColor: rgb(0, 0, 0, 0), // Border transparan
             borderWidth: 0, // Tidak ada border
         });
 
-        const fontSize = 6; // Ukuran font teks
-        const text = 'Dokumen ini telah ditandatangani secara digital, silahkan lakukan verifikasi dokumen ini yang dapat diunduh dengan melakukan scan QR Code'; // Teks yang akan ditampilkan dalam textbox
+        // Opsi teks untuk menggambar teks di dalam textbox
+        const fontSize = 6;
+        const text = 'Dokumen ini telah ditandatangani secara digital, silahkan lakukan verifikasi dokumen ini yang dapat diunduh dengan melakukan scan QR Code';
 
         const textOptions = {
-            x: textBoxX + 2, // Posisi X untuk teks dalam textbox
-            y: textBoxY + textBoxHeight - fontSize - 2, // Posisi Y untuk teks dalam textbox
-            size: fontSize, // Ukuran font teks
-            color: rgb(0, 0, 0), // Warna font hitam
-            maxWidth: textBoxWidth - 4, // Lebar maksimum teks dalam textbox
-            lineHeight: fontSize + 2, // Tinggi baris teks
+            x: textBoxX + 2,
+            y: textBoxY + textBoxHeight - fontSize - 2,
+            size: fontSize,
+            color: rgb(0, 0, 0),
+            maxWidth: textBoxWidth - 4,
+            lineHeight: fontSize + 2,
         };
 
-        // Output teks yang akan ditampilkan
-        // console.log(`Teks yang akan ditampilkan dalam Textbox:
-        //         "${text}"`);
-
-        // Gambar teks dalam textbox
+        // Menggambar teks dalam textbox
         firstPage.drawText(text, textOptions);
 
-        // Hitung posisi QR Code
-        const qrCodeX = textBoxX - qrCodeSize - margin; // Posisi X untuk QR Code
-        const qrCodeY = margin; // Posisi Y untuk QR Code
+        // Menghitung posisi QR Code
+        const qrCodeX = textBoxX - qrCodeSize - margin;
+        const qrCodeY = margin;
 
-        // Output posisi dan ukuran QR Code
-        // console.log(`Posisi dan Ukuran QR Code:
-        //         X: ${qrCodeX} points
-        //         Y: ${qrCodeY} points
-        //         Ukuran: ${qrCodeSize} points`);
-
-        // Gambar QR Code
+        // Menggambar QR Code di halaman PDF
         firstPage.drawImage(pngImage, {
             x: qrCodeX,
             y: qrCodeY,
@@ -135,19 +123,22 @@ const upload = async (req, res) => {
             height: qrCodeSize,
         });
 
+        // Menyimpan perubahan pada dokumen PDF
         const modifiedPdfBytes = await pdfDoc.save();
         fs.writeFileSync(barcodeFilePath, modifiedPdfBytes);
 
+        // Menyimpan informasi dokumen ke database menggunakan Prisma
         const pdfData = await prisma.document.create({
             data: {
                 originalFileName: file.originalname,
                 barcodeFileName,
-                originalFilePath: `uploads/digital_signature/${year}/${userId}/${file.filename}`,
-                path: `uploads/digital_signature/${year}/${userId}/${barcodeFileName}`,
-                userId: parseInt(userId),
+                originalFilePath: `uploads/original/${year}/${month}/${day}/${userId}/${file.filename}`,
+                path: `uploads/digital_signature/${year}/${month}/${day}/${userId}/${barcodeFileName}`,
+                userId: userId, // Menggunakan UUID langsung
             },
         });
 
+        // Mengirimkan respons sukses dengan data PDF yang baru disimpan
         res.status(200).json(pdfData);
     } catch (error) {
         console.error('Error during file upload:', error);

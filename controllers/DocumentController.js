@@ -98,7 +98,7 @@ const deleteDocument = async (req, res) => {
     try {
         // Find the document to get file paths
         const document = await prisma.document.findUnique({
-            where: { id: Number(id) },
+            where: { id: String(id) },
         });
 
         if (!document) {
@@ -110,7 +110,7 @@ const deleteDocument = async (req, res) => {
 
         // Soft delete the document by setting isDeleted to true
         await prisma.document.update({
-            where: { id: Number(id) },
+            where: { id: String(id) },
             data: { isDeleted: true },
         });
 

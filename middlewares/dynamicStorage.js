@@ -13,10 +13,15 @@ const createDirectories = (dirs) => {
 // Multer storage configuration
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        const year = new Date().getFullYear();
-        const userId = req.userId.toString(); // Assuming `req.userId` is available from the auth middleware
+        const date = new Date();
+        const year = String(date.getFullYear());
+        const month = String(date.getMonth() + 1).padStart(2, '0'); // Get month (0-based index, hence +1)
+        const day = String(date.getDate()).padStart(2, '0'); // Get day of the month
 
-        const uploadPath = path.join(__dirname, '..', 'public', 'uploads', 'digital_signature', year.toString(), userId);
+        const userId = String(req.userId); // Assuming `req.userId` is available from the auth middleware
+
+        // Update the upload path to include year, month, and day
+        const uploadPath = path.join(__dirname, '..', 'public', 'uploads', 'original', year, month, day, userId);
 
         createDirectories(uploadPath);
 
