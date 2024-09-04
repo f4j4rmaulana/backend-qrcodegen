@@ -9,14 +9,18 @@ datasource db {
 }
 
 model User {
-  id        String     @id @default(uuid()) @db.Uuid  // Menggunakan UUID sebagai ID
-  name      String?    @db.VarChar(255)
-  email     String     @unique(map: "email") @db.VarChar(255)
-  password  String?    @db.VarChar(255)
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  documents Document[] @relation("UserDocuments")
-  isDeleted Boolean    @default(false)
+  id          String     @id @default(uuid()) @db.Uuid  // Menggunakan UUID sebagai ID
+  name        String?    @db.VarChar(255)
+  email       String     @unique(map: "email") @db.VarChar(255)
+  password    String?    @db.VarChar(255)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  documents   Document[] @relation("UserDocuments")
+  isDeleted   Boolean    @default(false)
+  unitKerjaId String?    @db.Uuid  // Foreign key ke UnitKerja menggunakan UUID
+  unitKerja   UnitKerja? @relation(fields: [unitKerjaId], references: [id])  // Relasi ke model UnitKerja
+  roleId      String?    @db.Uuid  // Foreign key ke Role menggunakan UUID
+  role        Role?      @relation(fields: [roleId], references: [id])  // Relasi ke model Role
 
   @@map("users")
 }
@@ -33,4 +37,21 @@ model Document {
   isDeleted        Boolean  @default(false)
 
   @@map("documents")
+}
+
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid  // Menggunakan UUID sebagai ID
+  name        String   @unique @db.VarChar(50)  // Nama role unik seperti "Superuser", "Administrator", "TU", "Operator"
+  description String?  @db.VarChar(255)  // Deskripsi role untuk informasi tambahan
+  users       User[]   // Relasi ke User untuk menghubungkan pengguna dengan role
+
+  @@map("roles")
+}
+
+model UnitKerja {
+  id      String   @id @default(uuid()) @db.Uuid  // Menggunakan UUID sebagai ID
+  nama    String   @db.VarChar(255)  // Nama unit kerja
+  users   User[]   // Relasi ke User untuk menghubungkan pengguna dengan unit kerja
+
+  @@map("unit_kerjas")
 }

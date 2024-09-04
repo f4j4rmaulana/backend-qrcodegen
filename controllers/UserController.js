@@ -4,19 +4,89 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const prisma = require('../prisma/client');
 
+// Endpoint untuk mengambil semua data Unit Kerja
+const fetchUnitKerja = async (req, res) => {
+    try {
+        // Ambil semua unit kerja dari database
+        const unitKerjaList = await prisma.unitKerja.findMany({
+            select: {
+                id: true,
+                nama: true
+            }
+        });
+
+        res.status(200).json({
+            success: true,
+            message: 'Fetched all unit kerja successfully',
+            data: unitKerjaList
+        });
+    } catch (error) {
+        console.error('Error fetching unit kerja:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error',
+        });
+    }
+};
+
+// Endpoint untuk mengambil semua data Role dengan penyaringan berdasarkan peran pengguna saat ini
+const fetchRoles = async (req, res) => {
+    console.log(req);
+    try {
+        const currentUserRoleName = req.user.role; // Dapatkan peran pengguna saat ini
+
+        // Definisikan daftar role yang tersedia berdasarkan peran pengguna saat ini
+        let roleList;
+
+        if (currentUserRoleName === 'Operator' || currentUserRoleName === 'TU' || currentUserRoleName === 'Administrator' ) {
+            // Jika pengguna adalah 'Operator' atau 'TU', hanya kembalikan peran 'Operator' atau 'TU'
+            roleList = await prisma.role.findMany({
+                where: {
+                    name: { in: ['Operator', 'TU'] }
+                },
+                select: {
+                    id: true,
+                    name: true,
+                    description: true
+                }
+            });
+        } else {
+            // Jika bukan, kembalikan semua peran
+            roleList = await prisma.role.findMany({
+                select: {
+                    id: true,
+                    name: true,
+                    description: true
+                }
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Fetched roles successfully',
+            data: roleList
+        });
+    } catch (error) {
+        console.error('Error fetching roles:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error',
+        });
+    }
+};
+
 // Fungsi untuk mendapatkan daftar pengguna
 const findUsers = async (req, res) => {
     try {
-        // Mendapatkan parameter halaman (page) dan batas data per halaman (limit) dari query, dengan nilai default
+        // Ambil parameter halaman dan limit dari query string, atau gunakan nilai default
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
         const offset = (page - 1) * limit;
 
-        // Mendapatkan query pencarian (search) dari parameter query, dengan nilai default kosong
         let searchQuery = req.query.search || '';
-        searchQuery = searchQuery.toLowerCase(); // Mengubah query pencarian menjadi huruf kecil
+        searchQuery = searchQuery.toLowerCase();
 
-        // Membangun filter pencarian berdasarkan nama atau email yang mengandung query pencarian
+        // Filter pencarian berdasarkan nama atau email
         const searchFilter = searchQuery
             ? {
                   OR: [
@@ -26,105 +96,137 @@ const findUsers = async (req, res) => {
               }
             : {};
 
-        // Mengambil data pengguna dari database dengan pagination, mengabaikan pengguna yang soft-deleted, dan menerapkan filter pencarian
-        const users = await prisma.user.findMany({
+        // Filter tambahan untuk peran 'TU' dan 'Operator' agar tidak bisa melihat 'Superuser' dan 'Administrator'
+        const roleFilter = (req.user.role === 'TU' || req.user.role === 'Operator')
+            ? {
+                  role: {
+                      isNot: {
+                          name: { in: ['Superuser', 'Administrator'] } // Menggunakan filter relasi
+                      }
+                  }
+              }
+            : (req.user.role === 'Administrator' ? {
+                  role: {
+                      isNot: {
+                          //name: 'Superuser' // Menggunakan filter relasi
+                          name: { in: ['Superuser', 'Administrator'] } 
+                      }
+                  }
+              } : {});
+
+        // Filter tambahan untuk unit kerja jika peran pengguna adalah 'TU' atau 'Operator'
+        const unitKerjaFilter = (req.user.role === 'TU' || req.user.role === 'Operator') && req.user.unitKerjaId
+            ? { unitKerjaId: req.user.unitKerjaId }
+            : {};
+
+        // Ambil daftar pengguna dari database
+        const userList = await prisma.user.findMany({
             where: {
-                email: { not: 'admin@admin.com' }, // Mengabaikan pengguna dengan email admin
-                isDeleted: false, // Mengambil hanya pengguna yang tidak dihapus (isDeleted: false)
-                ...searchFilter, // Menggabungkan dengan filter pencarian
+                email: { not: 'admin@admin.com' },
+                isDeleted: false,
+                ...searchFilter,
+                ...roleFilter,
+                ...unitKerjaFilter,
             },
             select: {
                 id: true,
                 name: true,
                 email: true,
+                role: {
+                    select: {
+                        name: true,
+                    }
+                },
+                unitKerja: {
+                    select: {
+                        nama: true,
+                    }
+                },
             },
             orderBy: {
-                id: 'desc', // Mengurutkan hasil berdasarkan ID secara menurun
+                id: 'desc',
             },
             skip: offset,
             take: limit,
         });
 
-        // Menghitung total pengguna yang memenuhi filter pencarian, mengabaikan pengguna yang sudah dihapus
+        // Hitung total pengguna untuk pagination
         const totalUsers = await prisma.user.count({
             where: {
                 email: { not: 'admin@admin.com' },
                 isDeleted: false,
                 ...searchFilter,
+                ...roleFilter,
+                ...unitKerjaFilter,
             },
         });
 
-        // Menghitung total halaman berdasarkan jumlah pengguna dan limit per halaman
         const totalPages = Math.ceil(totalUsers / limit);
 
-        // Mengirimkan respon dengan data pengguna, halaman saat ini, dan total halaman
         res.status(200).send({
             success: true,
-            message: 'Get all users successfully', // Pesan tetap seperti semula
-            data: users,
+            message: 'Get all users successfully',
+            data: userList,
             currentPage: page,
             totalPages: totalPages,
         });
     } catch (error) {
         console.error('Error fetching users:', error);
-        // Mengirimkan respon error jika terjadi kesalahan saat mengambil data pengguna
         res.status(500).send({
             success: false,
-            message: 'Internal server error', // Pesan tetap seperti semula
+            message: 'Internal server error',
         });
     }
 };
 
 // Fungsi untuk membuat pengguna baru
 const createUser = async (req, res) => {
-    // Periksa hasil validasi
+    // Periksa hasil validasi input
     const errors = validationResult(req);
 
     if (!errors.isEmpty()) {
-        // Jika ada error, kembalikan error ke pengguna
         return res.status(422).json({
             success: false,
-            message: 'Validation error', // Pesan tetap seperti semula
+            message: 'Validation error',
             errors: errors.array(),
         });
     }
 
-    // Enkripsi password
+    // Enkripsi password pengguna
     const hashedPassword = await bcrypt.hash(req.body.password, 10);
 
     try {
-        // Insert data pengguna baru ke dalam database
-        const user = await prisma.user.create({
+        // Buat pengguna baru dalam database
+        const newUser = await prisma.user.create({
             data: {
                 name: req.body.name,
                 email: req.body.email,
                 password: hashedPassword,
+                roleId: req.body.roleId,
+                unitKerjaId: req.body.unitKerjaId,
             },
         });
 
-        // Kirim respon berhasil
         res.status(201).send({
             success: true,
-            message: 'User created successfully', // Pesan tetap seperti semula
-            data: user,
+            message: 'User created successfully',
+            data: newUser,
         });
     } catch (error) {
         console.error('Error creating user:', error);
-        // Mengirimkan respon error jika terjadi kesalahan saat membuat pengguna
         res.status(500).send({
             success: false,
-            message: 'Internal server error', // Pesan tetap seperti semula
+            message: 'Internal server error',
         });
     }
 };
 
 // Fungsi untuk mendapatkan pengguna berdasarkan ID
 const findUserById = async (req, res) => {
-    // Mendapatkan ID dari parameter URL
     const { id } = req.params;
 
     try {
-        // Mendapatkan data pengguna dari database berdasarkan ID
+        // Ambil pengguna berdasarkan ID dari database, termasuk relasi peran dan unit kerja
         const user = await prisma.user.findUnique({
             where: {
                 id: String(id),
@@ -133,137 +235,228 @@ const findUserById = async (req, res) => {
                 id: true,
                 name: true,
                 email: true,
+                role: {
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                },
+                unitKerja: {
+                    select: {
+                        id: true,
+                        nama: true,
+                    },
+                },
             },
         });
 
-        // Kirim respon berhasil
+        if (!user) {
+            return res.status(404).send({
+                success: false,
+                message: 'User not found',
+            });
+        }
+
         res.status(200).send({
             success: true,
-            message: `Get user by ID: ${id}`, // Pesan tetap seperti semula
-            data: user,
+            message: `Get user by ID: ${id}`,
+            data: {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                role: {
+                    id: user.role?.id || null,
+                    name: user.role?.name || 'Role not assigned',
+                },
+                unitKerja: {
+                    id: user.unitKerja?.id || null,
+                    name: user.unitKerja?.nama || 'Unit not assigned',
+                },
+            },
         });
     } catch (error) {
         console.error('Error fetching user by ID:', error);
-        // Mengirimkan respon error jika terjadi kesalahan saat mengambil data pengguna
         res.status(500).send({
             success: false,
-            message: 'Internal server error', // Pesan tetap seperti semula
+            message: 'Internal server error',
         });
     }
 };
 
-// Fungsi untuk memperbarui pengguna
+// Fungsi untuk memperbarui data pengguna
 const updateUser = async (req, res) => {
-    // Mendapatkan ID dari parameter URL
     const { id } = req.params;
 
-    // Periksa hasil validasi
-    const errors = validationResult(req);
-
-    if (!errors.isEmpty()) {
-        // Jika ada error, kembalikan error ke pengguna
-        return res.status(422).json({
-            success: false,
-            message: 'Validation error', // Pesan tetap seperti semula
-            errors: errors.array(),
-        });
-    }
-
-    // Enkripsi password
-    const hashedPassword = await bcrypt.hash(req.body.password, 10);
-
     try {
-        // Update data pengguna di database
-        const user = await prisma.user.update({
+        // Periksa apakah pengguna ada di database
+        const existingUser = await prisma.user.findUnique({
+            where: {
+                id: String(id),
+            },
+        });
+
+        if (!existingUser) {
+            return res.status(404).send({
+                success: false,
+                message: 'User not found',
+            });
+        }
+
+        // Jika email yang diberikan berbeda dari email saat ini
+        if (req.body.email !== existingUser.email) {
+            // Periksa apakah email baru sudah digunakan oleh pengguna lain
+            const emailExists = await prisma.user.findUnique({
+                where: {
+                    email: req.body.email,
+                },
+            });
+
+            if (emailExists) {
+                return res.status(422).json({
+                    success: false,
+                    message: 'Validation error',
+                    errors: [
+                        {
+                            type: 'field',
+                            value: req.body.email,
+                            msg: 'Email already exists',
+                            path: 'email',
+                            location: 'body'
+                        }
+                    ],
+                });
+            }
+        }
+
+        // Enkripsi password jika diberikan
+        let hashedPassword;
+        if (req.body.password) {
+            hashedPassword = await bcrypt.hash(req.body.password, 10);
+        }
+
+        // Perbarui data pengguna dalam database
+        const updatedUser = await prisma.user.update({
             where: {
                 id: String(id),
             },
             data: {
                 name: req.body.name,
                 email: req.body.email,
-                password: hashedPassword,
+                password: hashedPassword ? hashedPassword : existingUser.password,
+                roleId: req.body.roleId,
+                unitKerjaId: req.body.unitKerjaId,
             },
         });
 
-        // Kirim respon berhasil
         res.status(200).send({
             success: true,
-            message: 'User updated successfully', // Pesan tetap seperti semula
-            data: user,
+            message: 'User updated successfully',
+            data: updatedUser,
         });
     } catch (error) {
         console.error('Error updating user:', error);
-        // Mengirimkan respon error jika terjadi kesalahan saat memperbarui data pengguna
         res.status(500).send({
             success: false,
-            message: 'Internal server error', // Pesan tetap seperti semula
+            message: 'Internal server error',
         });
     }
 };
 
-// Fungsi untuk soft delete pengguna
+// Fungsi untuk melakukan soft delete pada pengguna
 const deleteUser = async (req, res) => {
-    // Mendapatkan ID dari parameter URL
     const { id } = req.params;
 
     try {
-        // Memeriksa apakah pengguna yang melakukan request adalah admin
-        const loggedInUser = await prisma.user.findUnique({
+        // Memeriksa pengguna yang melakukan request
+        const currentUser = await prisma.user.findUnique({
             where: {
-                id: String(req.userId),
+                id: String(req.user.id),
+            },
+            select: {
+                email: true,
+                role: {
+                    select: {
+                        name: true,
+                    },
+                },
             },
         });
 
-        // Jika pengguna yang melakukan request bukan admin, kirim respon error
-        if (loggedInUser.email !== 'admin@admin.com') {
-            return res.status(403).send({
+        if (!currentUser) {
+            return res.status(401).send({
                 success: false,
-                message: 'You do not have permission to delete users.', // Pesan tetap seperti semula
+                message: 'User not authenticated',
             });
         }
 
         // Mencari pengguna berdasarkan ID yang akan dihapus
-        const user = await prisma.user.findUnique({
+        const targetUser = await prisma.user.findUnique({
             where: {
                 id: String(id),
             },
+            select: {
+                email: true,
+                role: {
+                    select: {
+                        name: true,
+                    },
+                },
+            },
         });
 
-        // Jika pengguna tidak ditemukan, kirim respon error
-        if (!user) {
+        if (!targetUser) {
             return res.status(404).send({
                 success: false,
-                message: 'User not found', // Pesan tetap seperti semula
+                message: 'User not found',
             });
         }
 
-        // Mencegah penghapusan jika pengguna adalah admin
-        if (user.email === 'admin@admin.com') {
+        const currentUserRoleName = currentUser.role.name;
+        const targetUserRoleName = targetUser.role.name;
+
+        // Logika perizinan penghapusan berdasarkan peran
+        if (currentUserRoleName === 'Superuser') {
+            // Lanjutkan proses penghapusan
+        } 
+        else if (currentUserRoleName === 'Administrator' && targetUserRoleName === 'Superuser') {
             return res.status(403).send({
                 success: false,
-                message: 'Admin user cannot be deleted', // Pesan tetap seperti semula
+                message: 'You do not have permission to delete a Superuser.',
+            });
+        } 
+        else if ((currentUserRoleName === 'TU' || currentUserRoleName === 'Operator') && 
+                (targetUserRoleName === 'Superuser' || targetUserRoleName === 'Administrator')) {
+            return res.status(403).send({
+                success: false,
+                message: 'You do not have permission to delete this user.',
             });
         }
 
-        // Soft delete pengguna dengan mengubah nilai isDeleted menjadi true
+        if (targetUser.email === 'admin@admin.com') {
+            return res.status(403).send({
+                success: false,
+                message: 'Admin user cannot be deleted',
+            });
+        }
+
+        // Lakukan soft delete pengguna dengan mengubah isDeleted menjadi true
         await prisma.user.update({
             where: { id: String(id) },
             data: { isDeleted: true },
         });
 
-        // Mengirimkan respon berhasil setelah soft delete
         res.status(200).send({
             success: true,
-            message: 'User deleted successfully', // Pesan tetap seperti semula
+            message: 'User deleted successfully',
         });
     } catch (error) {
         console.error('Error deleting user:', error);
-        // Mengirimkan respon error jika terjadi kesalahan saat menghapus pengguna
         res.status(500).send({
             success: false,
-            message: 'Internal server error', // Pesan tetap seperti semula
+            message: 'Internal server error',
         });
     }
 };
 
-module.exports = { findUsers, createUser, findUserById, updateUser, deleteUser };
+// Ekspor semua fungsi untuk digunakan dalam router
+module.exports = { findUsers, createUser, findUserById, updateUser, deleteUser, fetchUnitKerja, fetchRoles };

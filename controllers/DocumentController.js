@@ -2,42 +2,49 @@ const express = require('express');
 const fs = require('fs');
 const prisma = require('../prisma/client');
 
-// Helper function to delete a file from the filesystem
+// Fungsi bantu untuk menghapus file dari sistem file
 const deleteFile = (filePath) => {
     if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
+        fs.unlinkSync(filePath); // Menghapus file jika ada
     }
 };
 
+// Fungsi untuk mendapatkan dokumen dengan filter, pencarian, dan pagination
 const findDocuments = async (req, res) => {
     try {
-        // Get page, limit, and search query from query params, with default values
+        // Mendapatkan parameter page, limit, dan search dari query params, dengan nilai default
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
         let searchQuery = req.query.search || '';
 
-        // Convert search query to lowercase
+        // Mengubah query pencarian menjadi huruf kecil
         searchQuery = searchQuery.toLowerCase();
 
-        // Calculate offset
+        // Menghitung offset untuk pagination
         const offset = (page - 1) * limit;
 
-        // Build search filter
+        // Membangun filter pencarian
         const searchFilter = searchQuery
             ? {
-                  OR: [
-                      { originalFileName: { contains: searchQuery, mode: 'insensitive' } },
-                      { barcodeFileName: { contains: searchQuery, mode: 'insensitive' } },
-                      { user: { name: { contains: searchQuery, mode: 'insensitive' } } },
-                  ],
-              }
+                OR: [
+                    { originalFileName: { contains: searchQuery, mode: 'insensitive' } },
+                    { barcodeFileName: { contains: searchQuery, mode: 'insensitive' } },
+                    { user: { name: { contains: searchQuery, mode: 'insensitive' } } },
+                ],
+            }
             : {};
 
-        // Get all documents that are not soft deleted from the database with pagination and search
+        // Menggunakan filter unitKerja jika peran pengguna adalah 'TU' atau 'Operator'
+        const unitKerjaFilter = (req.user.role === 'TU' || req.user.role === 'Operator') && req.user.unitKerjaId
+            ? { user: { unitKerjaId: req.user.unitKerjaId } } // Filter dokumen berdasarkan unitKerja pengguna
+            : {};
+
+        // Mendapatkan semua dokumen yang tidak dihapus secara soft delete dari database dengan pagination dan pencarian
         const documents = await prisma.document.findMany({
             where: {
                 isDeleted: false,
                 ...searchFilter,
+                ...unitKerjaFilter, // Menerapkan filter unitKerja jika ada
             },
             select: {
                 id: true,
@@ -55,24 +62,25 @@ const findDocuments = async (req, res) => {
             take: limit,
         });
 
-        // Get total number of documents that match the search filter
+        // Mendapatkan jumlah total dokumen yang sesuai dengan filter pencarian
         const totalDocuments = await prisma.document.count({
             where: {
                 isDeleted: false,
                 ...searchFilter,
+                ...unitKerjaFilter, // Menerapkan filter unitKerja jika ada
             },
         });
 
-        // Calculate total pages
+        // Menghitung total halaman
         const totalPages = Math.ceil(totalDocuments / limit);
 
-        // Map documents to include userName directly in the response
+        // Memetakan dokumen untuk langsung menyertakan userName dalam respons
         const documentsWithUserName = documents.map((doc) => ({
             ...doc,
-            userName: doc.user ? doc.user.name : 'Unknown User',
+            userName: doc.user ? doc.user.name : 'Unknown User', // Menyertakan nama pengguna atau 'Unknown User' jika tidak ada
         }));
 
-        // Send response
+        // Mengirim respons
         res.status(200).send({
             success: true,
             message: 'Get all documents successfully',
@@ -89,36 +97,43 @@ const findDocuments = async (req, res) => {
     }
 };
 
-
-// Function to soft delete a document
+// Fungsi untuk menghapus dokumen secara soft delete
 const deleteDocument = async (req, res) => {
-    // Get ID from params
-    const { id } = req.params;
+    const { id } = req.params; // Mendapatkan ID dokumen dari parameter URL
 
     try {
-        // Find the document to get file paths
+        // Mencari dokumen untuk mendapatkan path file
         const document = await prisma.document.findUnique({
             where: { id: String(id) },
+            include: { user: true }, // Menyertakan relasi user untuk mengecek unitKerja
         });
 
         if (!document) {
             return res.status(404).send({
                 success: false,
-                message: 'Document not found',
+                message: 'Document not found', // Jika dokumen tidak ditemukan
             });
         }
 
-        // Soft delete the document by setting isDeleted to true
+        // Memeriksa apakah pengguna memiliki izin untuk menghapus dokumen berdasarkan peran dan unitKerja mereka
+        if ((req.user.role === 'TU' || req.user.role === 'Operator') && document.user.unitKerjaId !== req.user.unitKerjaId) {
+            return res.status(403).send({
+                success: false,
+                message: 'Forbidden: You do not have permission to delete documents outside your work unit.', // Pesan jika pengguna tidak memiliki izin
+            });
+        }
+
+        // Menghapus dokumen secara soft delete dengan mengatur isDeleted menjadi true
         await prisma.document.update({
             where: { id: String(id) },
             data: { isDeleted: true },
         });
 
-        // Delete the files from the filesystem
+        // Menghapus file dari sistem file
         deleteFile(document.path);
         deleteFile(document.originalFilePath);
 
-        // Send response
+        // Mengirim respons
         res.status(200).send({
             success: true,
             message: 'Document deleted successfully',

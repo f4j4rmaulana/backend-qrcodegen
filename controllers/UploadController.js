@@ -7,6 +7,12 @@ const { validationResult } = require('express-validator');
 const prisma = require('../prisma/client');
 require('dotenv').config(); // Memuat variabel lingkungan dari file .env
 
+// Function to mimic Laravel's dd() in Express
+// const dd = (req, res) => {
+//     console.log('Request Object:', req); // Log the entire req object to the console
+//     res.status(200).send('Debugging complete. Check server console for request details.');
+// };
+
 // Fungsi untuk menghasilkan hash untuk nama file
 const generateHash = (length = 32) => {
     return crypto.createHash('sha256').update(crypto.randomBytes(length)).digest('hex').slice(0, length);
@@ -20,6 +26,10 @@ const createDirectories = (dirs) => {
 };
 
 const upload = async (req, res) => {
+    
+    // // Use dd() to inspect req object and terminate request
+    // dd(req, res);
+
     // Validasi permintaan
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -30,8 +40,10 @@ const upload = async (req, res) => {
         const file = req.file;
 
         // Mendapatkan userId dari permintaan
-        const userId = req.userId;
+        const userId = String(req.user.id);
         if (!userId) return res.status(401).json({ message: 'User not authenticated' });
+
+        console.log('User ID:', userId);
 
         // Mendapatkan tanggal saat ini
         const date = new Date();
@@ -45,8 +57,12 @@ const upload = async (req, res) => {
         const barcodeFileName = `${hash}_${originalFileName}`;
 
         // Menentukan path untuk penyimpanan
-        const uploadsPath = path.join(__dirname, '..', 'public', 'uploads', 'original', year, month, day, userId);
+        const uploadsPath = path.join(__dirname, '..', 'public', 'uploads', 'original', year, month, day, String(userId));
         const uploadsPathBarcode = path.join(__dirname, '..', 'public', 'uploads', 'digital_signature', year, month, day, userId);
+
+        console.log(uploadsPath);
+        console.log(uploadsPathBarcode);
+
         createDirectories(uploadsPath);
         createDirectories(uploadsPathBarcode);
 
@@ -55,6 +71,9 @@ const upload = async (req, res) => {
         // path untuk menyimpan barcode file setelah di modif
         const barcodeFilePath = path.join(uploadsPathBarcode, barcodeFileName);
         // console.log(barcodeFilePath);
+
+        console.log(pdfPath);
+        console.log(barcodeFilePath);
 
         // Memeriksa apakah file PDF ada
         if (!fs.existsSync(pdfPath)) {

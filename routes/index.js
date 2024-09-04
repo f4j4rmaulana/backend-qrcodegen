@@ -1,71 +1,74 @@
-//import express
+// Import express
 const express = require('express');
 
-//init express router
+// Init express router
 const router = express.Router();
 
-//import register controller
+// Import controllers
 const registerController = require('../controllers/RegisterController.js');
-
-//import login controller
 const loginController = require('../controllers/LoginController');
-
-//import upload controller
 const uploadController = require('../controllers/UploadController');
-
-//import document controller
 const documentController = require('../controllers/DocumentController');
-
-//import user controller
 const userController = require('../controllers/UserController');
+const dashboardController = require('../controllers/DashboardController');
 
-//import validate register and login
+// Import validators
 const { validateRegister, validateLogin } = require('../utils/validators/auth');
-
-//import validate upload
 const { validateUpload } = require('../utils/validators/document');
-
-//import validate user
 const { validateUser } = require('../utils/validators/user');
 
-//import verify token middleware
+// Import middlewares
 const verifyToken = require('../middlewares/auth');
-
-//import multer configuration
+const authorizeRoles = require('../middlewares/authorize');
+const restrictToOwnUnit = require('../middlewares/access');
 const upload = require('../middlewares/dynamicStorage');
 
-//define route for register
-router.post('/register', validateRegister, registerController.register);
+// Define routes
 
-//define route for login
+// Route for register
+//router.post('/register', validateRegister, registerController.register);
+
+// Route for login
 router.post('/login', validateLogin, loginController.login);
 
-//define route for login
-router.post('/logout', loginController.logout);
+// Route for logout
+router.post('/logout', verifyToken, loginController.logout); // Added verifyToken for secure logout
 
-//define route for upload with token verification
-router.post('/admin/upload', verifyToken, upload.single('pdf'), validateUpload, uploadController.upload);
+// Route for dashboard
+router.get('/admin/dashboard', verifyToken, dashboardController.getDashboardStats);
 
-//define route for get all document
-router.get('/admin/documents', verifyToken, documentController.findDocuments);
+// Route for upload with token verification
+router.post('/admin/upload', verifyToken, authorizeRoles(['Superuser', 'Administrator', 'TU', 'Operator']), upload.single('pdf'), validateUpload, uploadController.upload);
 
-//define route for delete document
-router.delete('/admin/documents/:id', verifyToken, documentController.deleteDocument);
+// Route for get all documents
+router.get('/admin/documents', verifyToken, authorizeRoles(['Superuser', 'Administrator', 'TU', 'Operator']), restrictToOwnUnit, documentController.findDocuments);
 
-//define route for get all user
-router.get('/admin/users', verifyToken, userController.findUsers);
+// Route for delete document
+router.delete('/admin/documents/:id', verifyToken, authorizeRoles(['Superuser', 'Administrator', 'TU']), restrictToOwnUnit, documentController.deleteDocument);
 
-//define route for create user
-router.post('/admin/users', verifyToken, validateUser, userController.createUser);
+// Route for get all users
+router.get('/admin/users', verifyToken, authorizeRoles(['Superuser', 'Administrator', 'TU', 'Operator']), userController.findUsers);
 
-//define route for user by id
-router.get('/admin/users/:id', verifyToken, userController.findUserById);
+// Route for create user
+router.post('/admin/users', verifyToken, authorizeRoles(['Superuser', 'Administrator', 'TU']), validateUser, userController.createUser);
 
-//define route for user update
-router.put('/admin/users/:id', verifyToken, validateUser, userController.updateUser);
+// Route for get user by id
+router.get('/admin/users/:id', verifyToken, authorizeRoles(['Superuser', 'Administrator', 'TU']), userController.findUserById);
 
-//define route for delete user
-router.delete('/admin/users/:id', verifyToken, userController.deleteUser);
+// Route for user update
+router.put('/admin/users/:id', verifyToken, authorizeRoles(['Superuser', 'Administrator', 'TU']), validateUser, userController.updateUser);
 
-//export router
+// Route for delete user
+router.delete('/admin/users/:id', verifyToken, authorizeRoles(['Superuser', 'Administrator', 'TU']), userController.deleteUser);
+
+// Route for unit kerja
+router.get('/admin/unit-kerja', verifyToken, userController.fetchUnitKerja);
+
+// Route for roles
+router.get('/admin/roles', verifyToken, userController.fetchRoles);
+
+// Route for change password
+router.post('/admin/change-password', verifyToken, loginController.changePassword);
+
+// Export router
 module.exports = router;
