@@ -8,7 +8,11 @@ const getDashboardStats = async (req, res) => {
       include: {
         users: {
           include: {
-            documents: true,
+            documents: {
+              where: {
+                isDeleted: false, // Filter documents where isDeleted is false
+              },
+            },
           },
         },
       },
