@@ -57,7 +57,7 @@ const findDocuments = async (req, res) => {
                     select: { name: true },
                 },
             },
-            orderBy: { id: 'desc' },
+            orderBy: { createdAt: 'desc' },
             skip: offset,
             take: limit,
         });

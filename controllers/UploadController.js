@@ -1,4 +1,4 @@
-const { PDFDocument, rgb } = require('pdf-lib');
+const { PDFDocument, rgb, degrees } = require('pdf-lib');
 const QRCode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
@@ -7,13 +7,7 @@ const { validationResult } = require('express-validator');
 const prisma = require('../prisma/client');
 require('dotenv').config(); // Memuat variabel lingkungan dari file .env
 
-// Function to mimic Laravel's dd() in Express
-// const dd = (req, res) => {
-//     console.log('Request Object:', req); // Log the entire req object to the console
-//     res.status(200).send('Debugging complete. Check server console for request details.');
-// };
-
-// Fungsi untuk menghasilkan hash untuk nama file
+// Fungsi untuk menghasilkan hash unik untuk nama file
 const generateHash = (length = 32) => {
     return crypto.createHash('sha256').update(crypto.randomBytes(length)).digest('hex').slice(0, length);
 };
@@ -26,10 +20,6 @@ const createDirectories = (dirs) => {
 };
 
 const upload = async (req, res) => {
-    
-    // // Use dd() to inspect req object and terminate request
-    // dd(req, res);
-
     // Validasi permintaan
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -39,7 +29,7 @@ const upload = async (req, res) => {
     try {
         const file = req.file;
 
-        // Mendapatkan userId dari permintaan
+        // Mendapatkan userId dari permintaan (user yang sedang login)
         const userId = String(req.user.id);
         if (!userId) return res.status(401).json({ message: 'User not authenticated' });
 
@@ -48,94 +38,118 @@ const upload = async (req, res) => {
         // Mendapatkan tanggal saat ini
         const date = new Date();
         const year = String(date.getFullYear());
-        const month = String(date.getMonth() + 1).padStart(2, '0'); // Mendapatkan bulan (0-based index, +1)
-        const day = String(date.getDate()).padStart(2, '0'); // Mendapatkan hari dalam sebulan
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
 
-        // Menghasilkan hash untuk nama file
+        // Menghasilkan hash untuk nama file agar unik
         const originalFileName = file.originalname.replace(/\s+/g, '_');
         const hash = generateHash();
         const barcodeFileName = `${hash}_${originalFileName}`;
 
-        // Menentukan path untuk penyimpanan
+        // Menentukan lokasi untuk menyimpan file
         const uploadsPath = path.join(__dirname, '..', 'public', 'uploads', 'original', year, month, day, String(userId));
         const uploadsPathBarcode = path.join(__dirname, '..', 'public', 'uploads', 'digital_signature', year, month, day, userId);
 
         console.log(uploadsPath);
         console.log(uploadsPathBarcode);
 
+        // Membuat direktori jika belum ada
         createDirectories(uploadsPath);
         createDirectories(uploadsPathBarcode);
 
-        // Path untuk membaca dan menyimpan file
+        // Menentukan path untuk file PDF yang diunggah
         const pdfPath = path.join(uploadsPath, file.filename);
-        // path untuk menyimpan barcode file setelah di modif
         const barcodeFilePath = path.join(uploadsPathBarcode, barcodeFileName);
-        // console.log(barcodeFilePath);
 
         console.log(pdfPath);
         console.log(barcodeFilePath);
 
-        // Memeriksa apakah file PDF ada
+        // Memeriksa apakah file PDF ada di lokasi tersebut
         if (!fs.existsSync(pdfPath)) {
             return res.status(404).json({ message: 'PDF file not found' });
         }
 
-        // Menghasilkan URL untuk QR code
+        // Membuat URL untuk QR Code
         const qrCodeText = `${process.env.BASE_URL}/uploads/digital_signature/${year}/${month}/${day}/${userId}/${barcodeFileName}`;
         const qrCodeImage = await QRCode.toDataURL(qrCodeText);
 
-        // Memuat dokumen PDF dan mempersiapkan halaman untuk pengeditan
+        // Memuat dokumen PDF dan mempersiapkan halaman untuk ditambahkan QR Code dan teks
         const pdfDoc = await PDFDocument.load(fs.readFileSync(pdfPath));
         const pages = pdfDoc.getPages();
         const firstPage = pages[0];
 
+        // Memeriksa apakah halaman PDF diputar
+        const rotationAngle = firstPage.getRotation().angle || 0;
+
         // Menyematkan gambar QR code ke dalam PDF
         const pngImage = await pdfDoc.embedPng(qrCodeImage);
 
-        // Ukuran dan margin untuk QR code dan teks
+        // Mengatur ukuran QR Code dan kotak teks
         const qrCodeSize = 56.7; // Ukuran QR Code dalam points (2 cm)
         const margin = 1; // Margin umum antar elemen dalam points
-        const textBoxWidth = 4 * 28.35; // Lebar textbox dalam points (3 cm)
-        const textBoxHeight = 1.8 * 28.35; // Tinggi textbox dalam points (1.8 cm)
+        const textBoxWidth = 4 * 28.35; // Lebar kotak teks dalam points (4 cm)
+        const textBoxHeight = 1.8 * 28.35; // Tinggi kotak teks dalam points (1.8 cm)
 
-        const { width, height } = firstPage.getSize(); // Mendapatkan ukuran halaman
+        const { width, height } = firstPage.getSize(); // Mendapatkan ukuran halaman PDF
 
-        // Menghitung posisi textbox
-        const textBoxX = width - textBoxWidth - margin;
-        const textBoxY = margin;
+        let textBoxX, textBoxY, qrCodeX, qrCodeY;
 
-        // Menggambar textbox dengan border putih (transparan)
-        firstPage.drawRectangle({
-            x: textBoxX,
-            y: textBoxY,
-            width: textBoxWidth,
-            height: textBoxHeight,
-            color: rgb(1, 1, 1, 0), // Transparan
-            borderColor: rgb(0, 0, 0, 0), // Border transparan
-            borderWidth: 0, // Tidak ada border
-        });
+        if (rotationAngle === 180) {
+            // Koordinat untuk rotasi 180 derajat
+            textBoxX = margin;
+            textBoxY = height - textBoxHeight - margin - 15;
 
-        // Opsi teks untuk menggambar teks di dalam textbox
-        const fontSize = 6;
-        const text = 'Dokumen ini telah ditandatangani secara digital, silahkan lakukan verifikasi dokumen ini yang dapat diunduh dengan melakukan scan QR Code';
+            qrCodeX = textBoxX + textBoxWidth + margin; // QR Code diletakkan di sebelah kotak teks
+            qrCodeY = height - qrCodeSize - margin;
+        } else {
+            // Koordinat normal tanpa rotasi
+            textBoxX = width - textBoxWidth - margin;
+            textBoxY = margin;
 
-        const textOptions = {
-            x: textBoxX + 2,
-            y: textBoxY + textBoxHeight - fontSize - 2,
-            size: fontSize,
-            color: rgb(0, 0, 0),
-            maxWidth: textBoxWidth - 4,
-            lineHeight: fontSize + 2,
-        };
+            qrCodeX = textBoxX - qrCodeSize - margin;
+            qrCodeY = margin;
+        }
 
-        // Menggambar teks dalam textbox
-        firstPage.drawText(text, textOptions);
+        // Log posisi dan ukuran untuk debugging
+        // console.log('Text Box Coordinates:', { textBoxX, textBoxY, textBoxWidth, textBoxHeight });
+        // console.log('QR Code Coordinates:', { qrCodeX, qrCodeY, qrCodeSize });
 
-        // Menghitung posisi QR Code
-        const qrCodeX = textBoxX - qrCodeSize - margin;
-        const qrCodeY = margin;
+        // Memutar kotak teks dan QR code jika halaman diputar
+        if (rotationAngle === 180) {
+            // Memutar teks dengan 180 derajat
+            firstPage.drawText('Dokumen ini telah ditandatangani secara digital, silahkan lakukan verifikasi dokumen ini yang dapat diunduh dengan melakukan scan QR Code', {
+                x: textBoxX + textBoxWidth / 2 + 55, // Mengatur posisi horizontal
+                y: textBoxY + textBoxHeight / 2, // Mengatur posisi vertikal
+                size: 6,
+                color: rgb(0, 0, 0),
+                maxWidth: textBoxWidth - 4,
+                rotate: degrees(180), // Memutar teks 180 derajat
+                lineHeight: 8,
+            });
+        } else {
+            // Gambar kotak teks secara normal tanpa rotasi
+            firstPage.drawRectangle({
+                x: textBoxX,
+                y: textBoxY,
+                width: textBoxWidth,
+                height: textBoxHeight,
+                color: rgb(1, 1, 1, 0), // Transparan
+                borderColor: rgb(0, 0, 0, 0), // Tanpa border
+                borderWidth: 0,
+            });
 
-        // Menggambar QR Code di halaman PDF
+            // Menambahkan teks di dalam kotak
+            firstPage.drawText('Dokumen ini telah ditandatangani secara digital, silahkan lakukan verifikasi dokumen ini yang dapat diunduh dengan melakukan scan QR Code', {
+                x: textBoxX + 2,
+                y: textBoxY + textBoxHeight - 6 - 2,
+                size: 6,
+                color: rgb(0, 0, 0),
+                maxWidth: textBoxWidth - 4,
+                lineHeight: 8,
+            });
+        }
+
+        // Menambahkan QR Code pada posisinya
         firstPage.drawImage(pngImage, {
             x: qrCodeX,
             y: qrCodeY,
@@ -143,7 +157,7 @@ const upload = async (req, res) => {
             height: qrCodeSize,
         });
 
-        // Menyimpan perubahan pada dokumen PDF
+        // Menyimpan perubahan pada file PDF
         const modifiedPdfBytes = await pdfDoc.save();
         fs.writeFileSync(barcodeFilePath, modifiedPdfBytes);
 
@@ -154,11 +168,11 @@ const upload = async (req, res) => {
                 barcodeFileName,
                 originalFilePath: `uploads/original/${year}/${month}/${day}/${userId}/${file.filename}`,
                 path: `uploads/digital_signature/${year}/${month}/${day}/${userId}/${barcodeFileName}`,
-                userId: userId, // Menggunakan UUID langsung
+                userId: userId,
             },
         });
 
-        // Mengirimkan respons sukses dengan data PDF yang baru disimpan
+        // Mengirim respons sukses dengan data PDF yang baru disimpan
         res.status(200).json(pdfData);
     } catch (error) {
         console.error('Error during file upload:', error);
